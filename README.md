@@ -11,6 +11,29 @@ A comprehensive [Model Context Protocol](https://modelcontextprotocol.io/) serve
 - Comments
 - Bulk reporting
 
+## Why This Server?
+
+Existing YouTube MCP servers focus narrowly on transcript scraping or basic search. This server covers **three YouTube APIs** and is the only open-source MCP server that provides:
+
+- **YouTube Analytics API** — channel performance, top videos/Shorts, audience retention curves, traffic sources, demographics, revenue, day-of-week analysis
+- **YouTube Reporting API** — schedule and download bulk CSV reports
+- **Full Data API coverage** — not just read, but also upload videos, manage playlists, post comments, set thumbnails
+- **YouTube SEO tools** — autocomplete suggestions, trending videos, category discovery
+- **Dual transcript strategy** — official captions API for your own videos, `youtube-transcript-api` fallback for any public video
+- **Quota tracking** — client-side tracking with hard-fail protection so you don't silently exhaust your daily quota
+
+| Feature | This server | Others |
+|---------|------------|--------|
+| Analytics API (watch time, retention, CTR) | Yes | No |
+| Reporting API (bulk CSV exports) | Yes | No |
+| Video upload & management | Yes | Rare |
+| Playlist management | Yes | Rare |
+| Comments (read + write) | Yes | No |
+| SEO / trending / suggestions | Yes | No |
+| Transcript extraction | Yes | Yes |
+| Quota tracking | Yes | No |
+| Total tools | 40 | 1-5 |
+
 ## Prerequisites
 
 - Python 3.11+
