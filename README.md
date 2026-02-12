@@ -77,13 +77,13 @@ Alternatively, set the `YOUTUBE_MCP_CLIENT_SECRET` environment variable to the p
 ## Installation
 
 ```bash
-pip install youtube-mcp-server
+pip install youtube-studio-mcp
 ```
 
 Or with uv:
 
 ```bash
-uv pip install youtube-mcp-server
+uv pip install youtube-studio-mcp
 ```
 
 ## MCP Client Configuration
@@ -96,7 +96,7 @@ Add to your `claude_desktop_config.json`:
 {
   "mcpServers": {
     "youtube": {
-      "command": "youtube-mcp-server"
+      "command": "youtube-studio-mcp"
     }
   }
 }
@@ -110,7 +110,7 @@ Add to your MCP settings:
 {
   "mcpServers": {
     "youtube": {
-      "command": "youtube-mcp-server"
+      "command": "youtube-studio-mcp"
     }
   }
 }
@@ -122,7 +122,7 @@ Add to your MCP settings:
 {
   "mcpServers": {
     "youtube": {
-      "command": "youtube-mcp-server",
+      "command": "youtube-studio-mcp",
       "env": {
         "YOUTUBE_MCP_CLIENT_SECRET": "/path/to/client_secret.json",
         "YOUTUBE_API_KEY": "your-api-key-for-public-data"
@@ -261,8 +261,8 @@ Use `youtube_auth_status` to check current quota usage.
 ## Development
 
 ```bash
-git clone https://github.com/pauling-ai/youtube-mcp-server.git
-cd youtube-mcp-server
+git clone https://github.com/pauling-ai/youtube-studio-mcp.git
+cd youtube-studio-mcp
 uv venv && uv pip install -e ".[dev]"
 .venv/bin/python -m pytest tests/ -v
 ```

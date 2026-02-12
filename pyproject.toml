@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "youtube-mcp-server"
+name = "youtube-studio-mcp"
 version = "0.1.0"
 description = "A comprehensive MCP server for YouTube Data API, Analytics API, and Reporting API"
 readme = "README.md"
@@ -40,7 +40,7 @@ dev = [
 ]
 
 [project.scripts]
-youtube-mcp-server = "youtube_mcp.server:main"
+youtube-studio-mcp = "youtube_mcp.server:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/youtube_mcp"]
