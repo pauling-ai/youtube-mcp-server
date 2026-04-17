@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from youtube_mcp.auth import AuthError, YouTubeAuth
+from youtube_mcp.auth import SCOPES, AuthError, YouTubeAuth
 
 
 def test_default_config_dir():
@@ -86,3 +86,58 @@ def test_load_and_save_token(tmp_path):
 
     yt_auth._save_token(mock_creds)
     assert (tmp_path / "token.json").exists()
+
+
+def test_scopes_include_force_ssl_for_comment_writes():
+    """commentThreads.insert and comments.insert require youtube.force-ssl.
+    Without this scope, write calls fail with 403 insufficientPermissions.
+    """
+    assert "https://www.googleapis.com/auth/youtube.force-ssl" in SCOPES
+
+
+class TestCachedTokenScopeValidation:
+    """Regression: when SCOPES is expanded (e.g. adding youtube.force-ssl),
+    existing cached tokens authorize only the old scope set but still report
+    creds.valid == True. authenticate() must detect the scope shortfall and
+    fall back to the interactive flow instead of returning stale credentials.
+    """
+
+    @patch("youtube_mcp.auth.Credentials.from_authorized_user_file")
+    def test_cached_token_missing_scopes_triggers_reauth(
+        self, mock_from_file, tmp_path
+    ):
+        insufficient_creds = MagicMock()
+        insufficient_creds.valid = True
+        insufficient_creds.expired = False
+        insufficient_creds.scopes = [
+            "https://www.googleapis.com/auth/youtube.readonly",
+        ]
+        mock_from_file.return_value = insufficient_creds
+
+        (tmp_path / "token.json").write_text("{}")
+
+        yt_auth = YouTubeAuth(
+            config_dir=tmp_path,
+            client_secret_path=tmp_path / "nonexistent.json",
+        )
+
+        # With no client_secret available, a forced re-auth surfaces as
+        # AuthError. That proves we did not silently return the stale creds.
+        with pytest.raises(AuthError, match="client_secret.json not found"):
+            yt_auth.authenticate()
+
+    @patch("youtube_mcp.auth.Credentials.from_authorized_user_file")
+    def test_cached_token_with_all_scopes_is_accepted(
+        self, mock_from_file, tmp_path
+    ):
+        sufficient_creds = MagicMock()
+        sufficient_creds.valid = True
+        sufficient_creds.expired = False
+        sufficient_creds.scopes = list(SCOPES)
+        mock_from_file.return_value = sufficient_creds
+
+        (tmp_path / "token.json").write_text("{}")
+
+        yt_auth = YouTubeAuth(config_dir=tmp_path)
+        result = yt_auth.authenticate()
+        assert result is sufficient_creds
