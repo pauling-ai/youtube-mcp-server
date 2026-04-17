@@ -13,11 +13,15 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
-# All scopes we need across all phases
+# All scopes we need across all phases.
+# youtube.force-ssl is required by commentThreads.insert / comments.insert;
+# without it, youtube_post_comment and youtube_reply_to_comment fail with
+# 403 insufficientPermissions.
 SCOPES = [
     "https://www.googleapis.com/auth/youtube.readonly",
     "https://www.googleapis.com/auth/youtube",
     "https://www.googleapis.com/auth/youtube.upload",
+    "https://www.googleapis.com/auth/youtube.force-ssl",
     "https://www.googleapis.com/auth/yt-analytics.readonly",
     "https://www.googleapis.com/auth/yt-analytics-monetary.readonly",
 ]
@@ -71,6 +75,28 @@ class YouTubeAuth:
         self.config_dir.mkdir(parents=True, exist_ok=True)
         self.token_path.write_text(creds.to_json())
 
+    @staticmethod
+    def _has_required_scopes(creds: Credentials | None) -> bool:
+        """Return True if the cached credential covers every scope in SCOPES.
+
+        google-auth's `creds.valid` only reflects token expiry, not scope
+        coverage. When SCOPES is expanded (e.g. adding youtube.force-ssl for
+        comment posting), a previously saved token still reports valid but
+        will 403 on any newly-required API. We must detect the mismatch and
+        drop back to the OAuth flow.
+        """
+        if creds is None:
+            return False
+        granted = set(creds.scopes or [])
+        return set(SCOPES).issubset(granted)
+
+    def _invalidate_token_file(self):
+        """Remove stale token so a fresh OAuth flow can overwrite it."""
+        try:
+            self.token_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+
     def authenticate(self) -> Credentials:
         """Get valid credentials, running OAuth flow if needed.
 
@@ -79,19 +105,24 @@ class YouTubeAuth:
         """
         creds = self._load_token()
 
-        if creds and creds.valid:
+        if creds and creds.valid and self._has_required_scopes(creds):
             self._credentials = creds
             return creds
 
-        if creds and creds.expired and creds.refresh_token:
+        if creds and creds.expired and creds.refresh_token and self._has_required_scopes(creds):
             try:
                 creds.refresh(Request())
                 self._save_token(creds)
                 self._credentials = creds
                 return creds
-            except Exception as e:
+            except Exception:
                 # Refresh failed, need to re-auth
                 pass
+
+        # Either no token, expired without refresh, or scopes insufficient.
+        # Drop the stale token so we do not keep reusing it.
+        if creds is not None and not self._has_required_scopes(creds):
+            self._invalidate_token_file()
 
         # Need to run the OAuth flow
         if not self.client_secret_path.exists():
