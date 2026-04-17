@@ -127,10 +127,14 @@ def youtube_update_video(
     quota.consume("update")
     response = youtube.videos().update(part=parts, body=body).execute()
 
+    # part='snippet' responses omit the 'status' block entirely, so access it
+    # defensively. Only surface the privacy field when the server actually
+    # returned it.
+    response_status = response.get("status") or {}
     return {
         "id": response["id"],
         "title": response["snippet"]["title"],
-        "privacy": response["status"]["privacyStatus"],
+        "privacy": response_status.get("privacyStatus"),
         "updated": True,
     }
 
