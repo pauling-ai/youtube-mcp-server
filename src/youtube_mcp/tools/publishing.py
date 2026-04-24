@@ -80,6 +80,8 @@ def youtube_update_video(
     tags: list[str] | None = None,
     category_id: str | None = None,
     privacy_status: str | None = None,
+    publish_at: str | None = None,
+    made_for_kids: bool | None = None,
 ) -> dict:
     """Update metadata for an existing video.
 
@@ -92,6 +94,8 @@ def youtube_update_video(
         tags: New tags (replaces existing tags)
         category_id: New category ID
         privacy_status: "private", "public", or "unlisted"
+        publish_at: ISO 8601 datetime to schedule publishing (requires privacy_status="private" — either passed explicitly here or already set on the video).
+        made_for_kids: COPPA self-declaration. Pass True/False to set selfDeclaredMadeForKids. Videos that were uploaded without this declaration cannot be published until it is set.
     """
     quota.consume("list")
     youtube = auth.build_youtube_service()
@@ -118,8 +122,16 @@ def youtube_update_video(
 
     body = {"id": video_id, "snippet": snippet}
 
-    if privacy_status is not None:
-        body["status"] = {"privacyStatus": privacy_status}
+    if privacy_status is not None or publish_at is not None or made_for_kids is not None:
+        effective_privacy = privacy_status or status.get("privacyStatus", "private")
+        new_status = {"privacyStatus": effective_privacy}
+        if publish_at:
+            if effective_privacy != "private":
+                return {"error": "publish_at requires privacy_status='private'"}
+            new_status["publishAt"] = publish_at
+        if made_for_kids is not None:
+            new_status["selfDeclaredMadeForKids"] = made_for_kids
+        body["status"] = new_status
         parts = "snippet,status"
     else:
         parts = "snippet"
@@ -131,6 +143,7 @@ def youtube_update_video(
         "id": response["id"],
         "title": response["snippet"]["title"],
         "privacy": response["status"]["privacyStatus"],
+        "publish_at": response["status"].get("publishAt"),
         "updated": True,
     }
 

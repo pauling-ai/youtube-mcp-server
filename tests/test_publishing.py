@@ -89,6 +89,83 @@ class TestUpdateVideo:
         result = youtube_update_video(video_id="nope", title="X")
         assert "error" in result
 
+    @patch("youtube_mcp.tools.publishing.auth")
+    @patch("youtube_mcp.tools.publishing.quota")
+    def test_update_schedule_on_private_video(self, mock_quota, mock_auth):
+        from youtube_mcp.tools.publishing import youtube_update_video
+
+        mock_yt = MagicMock()
+        mock_auth.build_youtube_service.return_value = mock_yt
+        mock_yt.videos().list().execute.return_value = {
+            "items": [{
+                "id": "vid1",
+                "snippet": {"title": "T", "description": "D", "tags": [], "categoryId": "22"},
+                "status": {"privacyStatus": "private"},
+            }]
+        }
+        mock_yt.videos().update().execute.return_value = {
+            "id": "vid1",
+            "snippet": {"title": "T"},
+            "status": {"privacyStatus": "private", "publishAt": "2026-05-01T16:00:00Z"},
+        }
+
+        result = youtube_update_video(video_id="vid1", publish_at="2026-05-01T16:00:00Z")
+        assert result["publish_at"] == "2026-05-01T16:00:00Z"
+        assert result["privacy"] == "private"
+
+        # Verify the body sent to update() included status.publishAt
+        call_kwargs = mock_yt.videos().update.call_args.kwargs
+        assert call_kwargs["part"] == "snippet,status"
+        assert call_kwargs["body"]["status"]["publishAt"] == "2026-05-01T16:00:00Z"
+        assert call_kwargs["body"]["status"]["privacyStatus"] == "private"
+
+    @patch("youtube_mcp.tools.publishing.auth")
+    @patch("youtube_mcp.tools.publishing.quota")
+    def test_update_made_for_kids(self, mock_quota, mock_auth):
+        from youtube_mcp.tools.publishing import youtube_update_video
+
+        mock_yt = MagicMock()
+        mock_auth.build_youtube_service.return_value = mock_yt
+        mock_yt.videos().list().execute.return_value = {
+            "items": [{
+                "id": "vid1",
+                "snippet": {"title": "T", "description": "D", "tags": [], "categoryId": "22"},
+                "status": {"privacyStatus": "private"},
+            }]
+        }
+        mock_yt.videos().update().execute.return_value = {
+            "id": "vid1",
+            "snippet": {"title": "T"},
+            "status": {"privacyStatus": "private"},
+        }
+
+        result = youtube_update_video(video_id="vid1", made_for_kids=False)
+        assert result["updated"] is True
+
+        call_kwargs = mock_yt.videos().update.call_args.kwargs
+        assert call_kwargs["part"] == "snippet,status"
+        assert call_kwargs["body"]["status"]["selfDeclaredMadeForKids"] is False
+        assert call_kwargs["body"]["status"]["privacyStatus"] == "private"
+
+    @patch("youtube_mcp.tools.publishing.auth")
+    @patch("youtube_mcp.tools.publishing.quota")
+    def test_update_schedule_rejects_public(self, mock_quota, mock_auth):
+        from youtube_mcp.tools.publishing import youtube_update_video
+
+        mock_yt = MagicMock()
+        mock_auth.build_youtube_service.return_value = mock_yt
+        mock_yt.videos().list().execute.return_value = {
+            "items": [{
+                "id": "vid1",
+                "snippet": {"title": "T", "description": "D", "tags": [], "categoryId": "22"},
+                "status": {"privacyStatus": "public"},
+            }]
+        }
+
+        result = youtube_update_video(video_id="vid1", publish_at="2026-05-01T16:00:00Z")
+        assert "error" in result
+        mock_yt.videos().update.assert_not_called()
+
 
 class TestSetThumbnail:
     @patch("youtube_mcp.tools.publishing.MediaFileUpload")
