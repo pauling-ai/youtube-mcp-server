@@ -80,6 +80,7 @@ def youtube_update_video(
     tags: list[str] | None = None,
     category_id: str | None = None,
     privacy_status: str | None = None,
+    publish_at: str | None = None,
 ) -> dict:
     """Update metadata for an existing video.
 
@@ -92,6 +93,7 @@ def youtube_update_video(
         tags: New tags (replaces existing tags)
         category_id: New category ID
         privacy_status: "private", "public", or "unlisted"
+        publish_at: ISO 8601 datetime to schedule publishing (requires privacy_status="private" — either passed explicitly here or already set on the video).
     """
     quota.consume("list")
     youtube = auth.build_youtube_service()
@@ -118,8 +120,14 @@ def youtube_update_video(
 
     body = {"id": video_id, "snippet": snippet}
 
-    if privacy_status is not None:
-        body["status"] = {"privacyStatus": privacy_status}
+    if privacy_status is not None or publish_at is not None:
+        effective_privacy = privacy_status or status.get("privacyStatus", "private")
+        new_status = {"privacyStatus": effective_privacy}
+        if publish_at:
+            if effective_privacy != "private":
+                return {"error": "publish_at requires privacy_status='private'"}
+            new_status["publishAt"] = publish_at
+        body["status"] = new_status
         parts = "snippet,status"
     else:
         parts = "snippet"
@@ -131,6 +139,7 @@ def youtube_update_video(
         "id": response["id"],
         "title": response["snippet"]["title"],
         "privacy": response["status"]["privacyStatus"],
+        "publish_at": response["status"].get("publishAt"),
         "updated": True,
     }
 
