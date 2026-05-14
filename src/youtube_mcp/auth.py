@@ -13,14 +13,31 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
-# All scopes we need across all phases
-SCOPES = [
+# Base scopes covering channel/video/playlist reads + writes, uploads,
+# and the two analytics APIs.
+_BASE_SCOPES = [
     "https://www.googleapis.com/auth/youtube.readonly",
     "https://www.googleapis.com/auth/youtube",
     "https://www.googleapis.com/auth/youtube.upload",
     "https://www.googleapis.com/auth/yt-analytics.readonly",
     "https://www.googleapis.com/auth/yt-analytics-monetary.readonly",
 ]
+
+# Required for the YouTube Data API's comment endpoints (commentThreads.list,
+# comments.insert, comments.update). Opt-in because it broadens the OAuth
+# consent screen — users who don't intend to read or post comments can leave
+# it off.
+_COMMENT_SCOPE = "https://www.googleapis.com/auth/youtube.force-ssl"
+
+
+def _resolve_scopes() -> list[str]:
+    scopes = list(_BASE_SCOPES)
+    if os.environ.get("YOUTUBE_MCP_ENABLE_COMMENTS", "").lower() in ("1", "true", "yes"):
+        scopes.append(_COMMENT_SCOPE)
+    return scopes
+
+
+SCOPES = _resolve_scopes()
 
 DEFAULT_CONFIG_DIR = Path.home() / ".youtube-mcp"
 TOKEN_FILE = "token.json"

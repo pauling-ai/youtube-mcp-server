@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from youtube_mcp.auth import AuthError, YouTubeAuth
+from youtube_mcp.auth import AuthError, YouTubeAuth, _resolve_scopes
 
 
 def test_default_config_dir():
@@ -70,6 +70,25 @@ def test_build_public_youtube_service_no_key(tmp_path):
         yt_auth.api_key = None
         with pytest.raises(AuthError, match="No API key available"):
             yt_auth.build_public_youtube_service()
+
+
+def test_resolve_scopes_excludes_force_ssl_by_default(monkeypatch):
+    monkeypatch.delenv("YOUTUBE_MCP_ENABLE_COMMENTS", raising=False)
+    scopes = _resolve_scopes()
+    assert "https://www.googleapis.com/auth/youtube.force-ssl" not in scopes
+
+
+@pytest.mark.parametrize("value", ["1", "true", "TRUE", "yes", "Yes"])
+def test_resolve_scopes_includes_force_ssl_when_enabled(monkeypatch, value):
+    monkeypatch.setenv("YOUTUBE_MCP_ENABLE_COMMENTS", value)
+    scopes = _resolve_scopes()
+    assert "https://www.googleapis.com/auth/youtube.force-ssl" in scopes
+
+
+def test_resolve_scopes_ignores_unrecognised_value(monkeypatch):
+    monkeypatch.setenv("YOUTUBE_MCP_ENABLE_COMMENTS", "maybe")
+    scopes = _resolve_scopes()
+    assert "https://www.googleapis.com/auth/youtube.force-ssl" not in scopes
 
 
 def test_load_and_save_token(tmp_path):

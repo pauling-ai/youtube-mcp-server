@@ -257,6 +257,7 @@ Use `youtube_auth_status` to check current quota usage.
 | `YOUTUBE_MCP_CLIENT_SECRET` | Path to `client_secret.json` |
 | `YOUTUBE_MCP_CONFIG_DIR` | Config directory (default: `~/.youtube-mcp`) |
 | `YOUTUBE_API_KEY` | API key for public-only operations |
+| `YOUTUBE_MCP_ENABLE_COMMENTS` | Set to `1` to include the `youtube.force-ssl` scope, required for the comment tools (`youtube_list_comments`, `youtube_post_comment`, `youtube_reply_to_comment`). Off by default to keep the OAuth consent screen minimal. Re-run `youtube_auth` after enabling. |
 
 ## Development
 
