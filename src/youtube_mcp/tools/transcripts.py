@@ -66,7 +66,7 @@ def _get_transcript_scraping(video_id: str, language: str) -> dict:
         from youtube_transcript_api import YouTubeTranscriptApi
 
         try:
-            transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+            transcript_list = YouTubeTranscriptApi().list(video_id)
 
             # Try to find the requested language, fall back to auto-generated
             try:
@@ -80,18 +80,12 @@ def _get_transcript_scraping(video_id: str, language: str) -> dict:
                     except Exception:
                         pass  # Use whatever we have
 
-            entries = transcript.fetch()
-            segments = []
-            full_text_parts = []
-            for entry in entries:
-                segments.append({
-                    "text": entry.get("text", entry.text if hasattr(entry, "text") else str(entry)),
-                    "start": entry.get("start", getattr(entry, "start", 0)),
-                    "duration": entry.get("duration", getattr(entry, "duration", 0)),
-                })
-                full_text_parts.append(
-                    entry.get("text", entry.text if hasattr(entry, "text") else str(entry))
-                )
+            fetched = transcript.fetch()
+            segments = [
+                {"text": s.text, "start": s.start, "duration": s.duration}
+                for s in fetched
+            ]
+            full_text_parts = [s.text for s in fetched]
 
             return {
                 "video_id": video_id,
