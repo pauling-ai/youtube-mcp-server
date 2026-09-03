@@ -71,10 +71,12 @@ def youtube_list_videos(
         channel_id: Channel ID to list videos from
         playlist_id: Playlist ID to list videos from (overrides channel_id)
         mine: If True, list the authenticated user's videos
-        max_results: Number of videos to return (max 50)
+        max_results: Number of videos to return. Values above 50 are served by
+            paging through the playlist; pass 0 or a negative value to fetch
+            every video in the playlist.
     """
     youtube = auth.build_youtube_service()
-    max_results = min(max_results, 50)
+    target = max_results if (max_results and max_results > 0) else None
 
     # Resolve uploads playlist if needed
     if not playlist_id:
@@ -98,36 +100,46 @@ def youtube_list_videos(
     if not playlist_id:
         return {"error": "Could not resolve uploads playlist"}
 
-    # Get playlist items
-    quota.consume("list")
-    pl_response = (
-        youtube.playlistItems()
-        .list(part="contentDetails", playlistId=playlist_id, maxResults=max_results)
-        .execute()
-    )
-
-    video_ids = [
-        item["contentDetails"]["videoId"]
-        for item in pl_response.get("items", [])
-    ]
-
+    video_ids = []
+    pi_map = {}
+    page_token = None
+    pl_response = {}
+    while True:
+        page_size = 50 if target is None else min(50, target - len(video_ids))
+        if page_size <= 0:
+            break
+        quota.consume("list")
+        pl_response = (
+            youtube.playlistItems()
+            .list(part="contentDetails", playlistId=playlist_id, maxResults=page_size, pageToken=page_token)
+            .execute()
+        )
+        for _it in pl_response.get("items", []):
+            _v = _it["contentDetails"]["videoId"]
+            video_ids.append(_v)
+            pi_map[_v] = _it["id"]
+        page_token = pl_response.get("nextPageToken")
+        if not page_token:
+            break
+        if target is not None and len(video_ids) >= target:
+            break
+    total = pl_response.get("pageInfo", {}).get("totalResults", len(video_ids))
     if not video_ids:
-        return {"videos": [], "total": 0}
-
-    # Get full video details in one batch call
-    quota.consume("list")
-    videos_response = (
-        youtube.videos()
-        .list(part="snippet,statistics,contentDetails", id=",".join(video_ids))
-        .execute()
-    )
-
-    videos = [format_video_summary(v) for v in videos_response.get("items", [])]
-
-    return {
-        "videos": videos,
-        "total": pl_response.get("pageInfo", {}).get("totalResults", len(videos)),
-    }
+        return {"videos": [], "total": total}
+    videos = []
+    for i in range(0, len(video_ids), 50):
+        quota.consume("list")
+        chunk = video_ids[i : i + 50]
+        videos_response = (
+            youtube.videos()
+            .list(part="snippet,statistics,contentDetails", id=",".join(chunk))
+            .execute()
+        )
+        for _vv in videos_response.get("items", []):
+            _summ = format_video_summary(_vv)
+            _summ["playlist_item_id"] = pi_map.get(_summ.get("id"))
+            videos.append(_summ)
+    return {"videos": videos, "total": total}
 
 
 @mcp.tool()
