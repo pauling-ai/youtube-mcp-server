@@ -14,34 +14,52 @@ def youtube_list_playlists(
     Args:
         channel_id: Channel ID to list playlists from
         mine: If True, list the authenticated user's playlists
-        max_results: Number of playlists to return (max 50)
+        max_results: Number of playlists to return. Values above 50 are
+            served by paging through results; pass 0 or a negative value to
+            fetch every playlist.
     """
-    quota.consume("list")
     youtube = auth.build_youtube_service()
+    target = max_results if (max_results and max_results > 0) else None
 
-    params = {"part": "snippet,contentDetails", "maxResults": min(max_results, 50)}
+    base_params = {"part": "snippet,contentDetails"}
     if mine:
-        params["mine"] = True
+        base_params["mine"] = True
     elif channel_id:
-        params["channelId"] = channel_id
+        base_params["channelId"] = channel_id
     else:
         return {"error": "Provide channel_id or set mine=True"}
 
-    response = youtube.playlists().list(**params).execute()
-
     playlists = []
-    for item in response.get("items", []):
-        snippet = item.get("snippet", {})
-        playlists.append({
-            "id": item["id"],
-            "title": snippet.get("title"),
-            "description": snippet.get("description", "")[:200],
-            "published_at": snippet.get("publishedAt"),
-            "video_count": item.get("contentDetails", {}).get("itemCount", 0),
-            "thumbnail": snippet.get("thumbnails", {}).get("high", {}).get("url"),
-        })
+    page_token = None
+    response = {}
+    while True:
+        page_size = 50 if target is None else min(50, target - len(playlists))
+        if page_size <= 0:
+            break
+        quota.consume("list")
+        response = (
+            youtube.playlists()
+            .list(**base_params, maxResults=page_size, pageToken=page_token)
+            .execute()
+        )
+        for item in response.get("items", []):
+            snippet = item.get("snippet", {})
+            playlists.append({
+                "id": item["id"],
+                "title": snippet.get("title"),
+                "description": snippet.get("description", "")[:200],
+                "published_at": snippet.get("publishedAt"),
+                "video_count": item.get("contentDetails", {}).get("itemCount", 0),
+                "thumbnail": snippet.get("thumbnails", {}).get("high", {}).get("url"),
+            })
+        page_token = response.get("nextPageToken")
+        if not page_token:
+            break
+        if target is not None and len(playlists) >= target:
+            break
 
-    return {"playlists": playlists, "total": len(playlists)}
+    total = response.get("pageInfo", {}).get("totalResults", len(playlists))
+    return {"playlists": playlists, "total": total}
 
 
 @mcp.tool()

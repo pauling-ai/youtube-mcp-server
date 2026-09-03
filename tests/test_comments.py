@@ -36,6 +36,57 @@ class TestListComments:
         assert result["comments"][0]["reply_count"] == 2
         mock_quota.consume.assert_called_once_with("list")
 
+    @patch("youtube_mcp.tools.comments.auth")
+    @patch("youtube_mcp.tools.comments.quota")
+    def test_pages_beyond_100(self, mock_quota, mock_auth):
+        """Regression: max_results above the API's 100-per-page cap must
+        page through nextPageToken instead of silently truncating.
+        """
+        from youtube_mcp.tools.comments import youtube_list_comments
+
+        def make_thread(i):
+            return {
+                "id": f"thread{i}",
+                "snippet": {
+                    "topLevelComment": {
+                        "id": f"comment{i}",
+                        "snippet": {
+                            "authorDisplayName": f"User{i}",
+                            "textDisplay": f"Comment {i}",
+                            "likeCount": 0,
+                            "publishedAt": "2025-06-01T00:00:00Z",
+                        },
+                    },
+                    "totalReplyCount": 0,
+                },
+            }
+
+        state = {"cursor": 0}
+
+        def list_side_effect(**kwargs):
+            page_size = kwargs["maxResults"]
+            token = kwargs.get("pageToken")
+            assert token is None or token == f"tok{state['cursor']}"
+            start = state["cursor"]
+            end = min(start + page_size, 150)
+            items = [make_thread(i) for i in range(start, end)]
+            state["cursor"] = end
+            resp = {"items": items, "pageInfo": {"totalResults": 150}}
+            if end < 150:
+                resp["nextPageToken"] = f"tok{end}"
+            return MagicMock(execute=MagicMock(return_value=resp))
+
+        mock_yt = MagicMock()
+        mock_auth.build_youtube_service.return_value = mock_yt
+        mock_yt.commentThreads().list.side_effect = list_side_effect
+
+        result = youtube_list_comments("vid1", max_results=120)
+
+        assert len(result["comments"]) == 120
+        assert result["total"] == 150
+        assert result["comments"][0]["comment_id"] == "comment0"
+        assert result["comments"][-1]["comment_id"] == "comment119"
+
 
 class TestPostComment:
     @patch("youtube_mcp.tools.comments.auth")

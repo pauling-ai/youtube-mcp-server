@@ -234,13 +234,13 @@ def youtube_analytics_geography(
     Args:
         start_date: Start date (YYYY-MM-DD). Defaults to 28 days ago.
         end_date: End date (YYYY-MM-DD). Defaults to today.
-        max_results: Number of countries to return.
+        max_results: Number of countries to return (max 200).
     """
     return _run_analytics_query(
         metrics="views,estimatedMinutesWatched",
         dimensions="country",
         sort="-views",
-        max_results=max_results,
+        max_results=min(max_results, 200),
         start_date=start_date,
         end_date=end_date,
     )

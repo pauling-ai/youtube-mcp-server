@@ -37,6 +37,45 @@ class TestListPlaylists:
         result = youtube_list_playlists()
         assert "error" in result
 
+    @patch("youtube_mcp.tools.playlists.auth")
+    @patch("youtube_mcp.tools.playlists.quota")
+    def test_pages_beyond_50(self, mock_quota, mock_auth):
+        """Regression: max_results above the API's 50-per-page cap must page
+        through nextPageToken instead of silently truncating.
+        """
+        from youtube_mcp.tools.playlists import youtube_list_playlists
+
+        def make_playlist(i):
+            return {
+                "id": f"PL{i}",
+                "snippet": {"title": f"Playlist {i}", "description": ""},
+                "contentDetails": {"itemCount": i},
+            }
+
+        state = {"cursor": 0}
+
+        def list_side_effect(**kwargs):
+            page_size = kwargs["maxResults"]
+            token = kwargs.get("pageToken")
+            assert token is None or token == f"tok{state['cursor']}"
+            start = state["cursor"]
+            end = min(start + page_size, 80)
+            items = [make_playlist(i) for i in range(start, end)]
+            state["cursor"] = end
+            resp = {"items": items, "pageInfo": {"totalResults": 80}}
+            if end < 80:
+                resp["nextPageToken"] = f"tok{end}"
+            return MagicMock(execute=MagicMock(return_value=resp))
+
+        mock_yt = MagicMock()
+        mock_auth.build_youtube_service.return_value = mock_yt
+        mock_yt.playlists().list.side_effect = list_side_effect
+
+        result = youtube_list_playlists(mine=True, max_results=0)
+
+        assert len(result["playlists"]) == 80
+        assert result["total"] == 80
+
 
 class TestCreatePlaylist:
     @patch("youtube_mcp.tools.playlists.auth")

@@ -1,6 +1,7 @@
 """YouTube search and SEO discovery tools."""
 
 import json
+import urllib.parse
 import urllib.request
 
 from youtube_mcp.server import auth, mcp, quota
@@ -96,7 +97,7 @@ def youtube_search_suggestions(query: str, language: str = "en") -> dict:
     """
     url = (
         f"https://suggestqueries-clients6.youtube.com/complete/search"
-        f"?client=youtube&ds=yt&q={urllib.request.quote(query)}&hl={language}"
+        f"?client=youtube&ds=yt&q={urllib.parse.quote(query)}&hl={language}"
     )
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
 

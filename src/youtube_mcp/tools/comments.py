@@ -13,40 +13,54 @@ def youtube_list_comments(
 
     Args:
         video_id: YouTube video ID
-        max_results: Number of comment threads to return (max 100)
+        max_results: Number of comment threads to return. Values above 100
+            are served by paging through results; pass 0 or a negative value
+            to fetch every top-level comment thread.
         order: Sort order: "relevance" or "time"
     """
-    quota.consume("list")
     youtube = auth.build_youtube_service()
-
-    response = (
-        youtube.commentThreads()
-        .list(
-            part="snippet",
-            videoId=video_id,
-            maxResults=min(max_results, 100),
-            order=order,
-        )
-        .execute()
-    )
+    target = max_results if (max_results and max_results > 0) else None
 
     comments = []
-    for item in response.get("items", []):
-        top = item["snippet"]["topLevelComment"]["snippet"]
-        comments.append({
-            "comment_id": item["snippet"]["topLevelComment"]["id"],
-            "thread_id": item["id"],
-            "author": top.get("authorDisplayName"),
-            "text": top.get("textDisplay"),
-            "likes": top.get("likeCount", 0),
-            "published_at": top.get("publishedAt"),
-            "reply_count": item["snippet"].get("totalReplyCount", 0),
-        })
+    page_token = None
+    response = {}
+    while True:
+        page_size = 100 if target is None else min(100, target - len(comments))
+        if page_size <= 0:
+            break
+        quota.consume("list")
+        response = (
+            youtube.commentThreads()
+            .list(
+                part="snippet",
+                videoId=video_id,
+                maxResults=page_size,
+                order=order,
+                pageToken=page_token,
+            )
+            .execute()
+        )
+        for item in response.get("items", []):
+            top = item["snippet"]["topLevelComment"]["snippet"]
+            comments.append({
+                "comment_id": item["snippet"]["topLevelComment"]["id"],
+                "thread_id": item["id"],
+                "author": top.get("authorDisplayName"),
+                "text": top.get("textDisplay"),
+                "likes": top.get("likeCount", 0),
+                "published_at": top.get("publishedAt"),
+                "reply_count": item["snippet"].get("totalReplyCount", 0),
+            })
+        page_token = response.get("nextPageToken")
+        if not page_token:
+            break
+        if target is not None and len(comments) >= target:
+            break
 
     return {
         "video_id": video_id,
         "comments": comments,
-        "total": len(comments),
+        "total": response.get("pageInfo", {}).get("totalResults", len(comments)),
     }
 
 
