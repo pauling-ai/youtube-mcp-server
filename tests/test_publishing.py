@@ -175,13 +175,6 @@ class TestUpdateVideo:
         """Regression: when privacy_status/publish_at/made_for_kids are all
         omitted, only part='snippet' is sent and the YouTube API response
         omits the 'status' field. The function must not raise KeyError.
-
-    def test_update_without_privacy_status_does_not_raise_keyerror(
-        self, mock_quota, mock_auth
-    ):
-        """Regression: when privacy_status is not provided, part='snippet' is sent
-        and the YouTube API response omits the 'status' field. The function must
-        not raise KeyError when parsing the response.
         """
         from youtube_mcp.tools.publishing import youtube_update_video
 
