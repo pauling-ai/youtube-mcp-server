@@ -97,6 +97,119 @@ class TestCreatePlaylist:
         mock_quota.consume.assert_called_once_with("insert")
 
 
+class TestUpdatePlaylist:
+    @patch("youtube_mcp.tools.playlists.auth")
+    @patch("youtube_mcp.tools.playlists.quota")
+    def test_update_title_and_description(self, mock_quota, mock_auth):
+        from youtube_mcp.tools.playlists import youtube_update_playlist
+
+        mock_yt = MagicMock()
+        mock_auth.build_youtube_service.return_value = mock_yt
+        mock_yt.playlists().list().execute.return_value = {
+            "items": [{
+                "id": "PL123",
+                "snippet": {"title": "Old Title", "description": "Old Desc"},
+                "status": {"privacyStatus": "public"},
+            }]
+        }
+        mock_yt.playlists().update().execute.return_value = {
+            "id": "PL123",
+            "snippet": {"title": "New Title"},
+            "status": {"privacyStatus": "public"},
+        }
+
+        result = youtube_update_playlist("PL123", title="New Title")
+        assert result["title"] == "New Title"
+        assert result["privacy"] == "public"
+        assert result["updated"] is True
+
+        call_kwargs = mock_yt.playlists().update.call_args.kwargs
+        assert call_kwargs["part"] == "snippet"
+        assert "status" not in call_kwargs["body"]
+
+    @patch("youtube_mcp.tools.playlists.auth")
+    @patch("youtube_mcp.tools.playlists.quota")
+    def test_update_privacy_status(self, mock_quota, mock_auth):
+        from youtube_mcp.tools.playlists import youtube_update_playlist
+
+        mock_yt = MagicMock()
+        mock_auth.build_youtube_service.return_value = mock_yt
+        mock_yt.playlists().list().execute.return_value = {
+            "items": [{
+                "id": "PL123",
+                "snippet": {"title": "T", "description": "D"},
+                "status": {"privacyStatus": "public"},
+            }]
+        }
+        mock_yt.playlists().update().execute.return_value = {
+            "id": "PL123",
+            "snippet": {"title": "T"},
+            "status": {"privacyStatus": "unlisted"},
+        }
+
+        result = youtube_update_playlist("PL123", privacy_status="unlisted")
+        assert result["privacy"] == "unlisted"
+
+        call_kwargs = mock_yt.playlists().update.call_args.kwargs
+        assert call_kwargs["part"] == "snippet,status"
+        assert call_kwargs["body"]["status"]["privacyStatus"] == "unlisted"
+
+    @patch("youtube_mcp.tools.playlists.auth")
+    @patch("youtube_mcp.tools.playlists.quota")
+    def test_update_not_found(self, mock_quota, mock_auth):
+        from youtube_mcp.tools.playlists import youtube_update_playlist
+
+        mock_yt = MagicMock()
+        mock_auth.build_youtube_service.return_value = mock_yt
+        mock_yt.playlists().list().execute.return_value = {"items": []}
+
+        result = youtube_update_playlist("nope", title="X")
+        assert "error" in result
+
+    @patch("youtube_mcp.tools.playlists.auth")
+    @patch("youtube_mcp.tools.playlists.quota")
+    def test_update_without_privacy_status_does_not_raise_keyerror(self, mock_quota, mock_auth):
+        """Regression pattern from youtube_update_video: part='snippet'
+        responses omit the 'status' block entirely, so the return builder
+        must not unconditionally index into it.
+        """
+        from youtube_mcp.tools.playlists import youtube_update_playlist
+
+        mock_yt = MagicMock()
+        mock_auth.build_youtube_service.return_value = mock_yt
+        mock_yt.playlists().list().execute.return_value = {
+            "items": [{
+                "id": "PL123",
+                "snippet": {"title": "Old", "description": "D"},
+                "status": {"privacyStatus": "public"},
+            }]
+        }
+        mock_yt.playlists().update().execute.return_value = {
+            "id": "PL123",
+            "snippet": {"title": "New"},
+        }
+
+        result = youtube_update_playlist("PL123", title="New")
+        assert result["title"] == "New"
+        assert result["updated"] is True
+        assert result.get("privacy") is None
+
+
+class TestDeletePlaylist:
+    @patch("youtube_mcp.tools.playlists.auth")
+    @patch("youtube_mcp.tools.playlists.quota")
+    def test_delete(self, mock_quota, mock_auth):
+        from youtube_mcp.tools.playlists import youtube_delete_playlist
+
+        mock_yt = MagicMock()
+        mock_auth.build_youtube_service.return_value = mock_yt
+
+        result = youtube_delete_playlist("PL123")
+        assert result["deleted"] is True
+        assert result["playlist_id"] == "PL123"
+        mock_quota.consume.assert_called_once_with("delete")
+
+
 class TestAddToPlaylist:
     @patch("youtube_mcp.tools.playlists.auth")
     @patch("youtube_mcp.tools.playlists.quota")

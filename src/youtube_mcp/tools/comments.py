@@ -124,3 +124,22 @@ def youtube_reply_to_comment(parent_id: str, text: str) -> dict:
         "text": response["snippet"].get("textDisplay"),
         "posted": True,
     }
+
+
+@mcp.tool()
+def youtube_delete_comment(comment_id: str) -> dict:
+    """Delete a comment. This action is irreversible.
+
+    Works on both top-level comments and replies. Deleting a top-level
+    comment also removes its replies.
+
+    Args:
+        comment_id: The comment ID to delete (from youtube_list_comments,
+            youtube_post_comment, or youtube_reply_to_comment)
+    """
+    quota.consume("delete")
+    youtube = auth.build_youtube_service()
+
+    youtube.comments().delete(id=comment_id).execute()
+
+    return {"comment_id": comment_id, "deleted": True}

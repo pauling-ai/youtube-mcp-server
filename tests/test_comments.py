@@ -129,3 +129,18 @@ class TestReplyToComment:
         assert result["posted"] is True
         assert result["parent_id"] == "comment1"
         mock_quota.consume.assert_called_once_with("insert")
+
+
+class TestDeleteComment:
+    @patch("youtube_mcp.tools.comments.auth")
+    @patch("youtube_mcp.tools.comments.quota")
+    def test_delete(self, mock_quota, mock_auth):
+        from youtube_mcp.tools.comments import youtube_delete_comment
+
+        mock_yt = MagicMock()
+        mock_auth.build_youtube_service.return_value = mock_yt
+
+        result = youtube_delete_comment("comment1")
+        assert result["deleted"] is True
+        assert result["comment_id"] == "comment1"
+        mock_quota.consume.assert_called_once_with("delete")

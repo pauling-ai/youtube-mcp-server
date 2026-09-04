@@ -99,6 +99,76 @@ def youtube_create_playlist(
 
 
 @mcp.tool()
+def youtube_update_playlist(
+    playlist_id: str,
+    title: str | None = None,
+    description: str | None = None,
+    privacy_status: str | None = None,
+) -> dict:
+    """Update metadata for an existing playlist.
+
+    Only provided fields are updated; others remain unchanged.
+
+    Args:
+        playlist_id: Playlist ID to update
+        title: New title
+        description: New description
+        privacy_status: "private", "public", or "unlisted"
+    """
+    quota.consume("list")
+    youtube = auth.build_youtube_service()
+
+    current = youtube.playlists().list(part="snippet,status", id=playlist_id).execute()
+    items = current.get("items", [])
+    if not items:
+        return {"error": f"Playlist not found: {playlist_id}"}
+
+    playlist = items[0]
+    snippet = playlist["snippet"]
+    status = playlist.get("status", {})
+
+    if title is not None:
+        snippet["title"] = title
+    if description is not None:
+        snippet["description"] = description
+
+    body = {"id": playlist_id, "snippet": snippet}
+
+    if privacy_status is not None:
+        body["status"] = {"privacyStatus": privacy_status}
+        parts = "snippet,status"
+    else:
+        parts = "snippet"
+
+    quota.consume("update")
+    response = youtube.playlists().update(part=parts, body=body).execute()
+
+    response_status = response.get("status") or {}
+    return {
+        "id": response["id"],
+        "title": response["snippet"]["title"],
+        "privacy": response_status.get("privacyStatus"),
+        "updated": True,
+    }
+
+
+@mcp.tool()
+def youtube_delete_playlist(playlist_id: str) -> dict:
+    """Delete a playlist. This action is irreversible and does not delete the
+    videos in it, only the playlist itself.
+
+    Args:
+        playlist_id: Playlist ID to delete
+    """
+    quota.consume("delete")
+    youtube = auth.build_youtube_service()
+
+    youtube.playlists().delete(id=playlist_id).execute()
+
+    return {"playlist_id": playlist_id, "deleted": True}
+
+
+@mcp.tool()
 def youtube_add_to_playlist(playlist_id: str, video_id: str, position: int | None = None) -> dict:
     """Add a video to a playlist.
 
