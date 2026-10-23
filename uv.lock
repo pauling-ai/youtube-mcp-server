@@ -1078,7 +1078,7 @@ wheels = [
 
 [[package]]
 name = "youtube-studio-mcp"
-version = "0.3.0"
+version = "0.3.1"
 source = { editable = "." }
 dependencies = [
     { name = "google-api-python-client" },
