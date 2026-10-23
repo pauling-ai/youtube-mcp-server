@@ -30,6 +30,10 @@ dependencies = [
     "google-auth-oauthlib>=1.1.0",
     "google-auth-httplib2>=0.1.0",
     "youtube-transcript-api>=1.0.0",
+    # Code uses the mcp 1.x API (from mcp.server.fastmcp import FastMCP);
+    # FastMCP was renamed to MCPServer in mcp 2.x. Floor 1.30.0 clears the
+    # known mcp advisories; cap <2 until the code is migrated.
+    "mcp>=1.30.0,<2",
 ]
 
 [project.optional-dependencies]
